@@ -1,0 +1,32 @@
+#!/bin/sh
+
+description() {
+    echo "print ceph $(echo $1 | sed -e 's/-/ /g')"
+}
+
+help() {
+    description $1
+}
+
+cmd=$(basename $0)
+
+case "$1" in
+    description)
+        description "${cmd}"
+        exit 0
+        ;;
+    help)
+        help $cmd
+        exit 0
+        ;;
+esac
+
+
+file="${SES_SUPPORTCONFIG_DIR}/ceph/ceph-${cmd}"
+
+if ! [ -e "${file}" ]; then
+    echo "$cmd is not available: cannot find ${file}" >&2
+    exit 1
+fi
+
+cat $file | grep -v '^#'

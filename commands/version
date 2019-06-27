@@ -1,0 +1,44 @@
+#!/bin/sh
+
+description() {
+    echo "print ceph version"
+}
+
+help() {
+    description
+    echo
+    echo "Options: "
+    echo "  --all  - show also osd daemon versions"
+}
+
+case "$1" in
+    description)
+        description
+        exit 0
+        ;;
+    help)
+        help
+        exit 0
+        ;;
+esac
+
+ceph_report="${SES_SUPPORTCONFIG_DIR}/ceph/ceph-report"
+
+if ! [ -e "${ceph_report}" ]; then
+    echo "cannot find ceph-report file" \
+         "in supportconfig directory ${SES_SUPPORTCONFIG_DIR}" >&2
+    exit 1
+fi
+
+if [ "$1" != "--all" ]; then
+    awk '$1 == "\"version\":" {gsub(/[",]/, "", $2); print $2; exit}' "${ceph_report}"
+    exit 0
+fi
+
+sed -e 's/[",]//g' "${ceph_report}" |
+awk '
+    $1 == "version:" {print "  cluster:\t" $2}
+    $1 == "osd_metadata:" {osd_metadata = 1}
+    osd_metadata && $1 == "id:" {osd_id = $2}
+    osd_metadata && $1 == "ceph_version:" {print "  osd." osd_id ":\t" $4}
+'

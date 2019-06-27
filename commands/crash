@@ -1,0 +1,141 @@
+#!/bin/sh
+
+description() {
+    echo "print info about ceph daemon crashes"
+}
+
+help() {
+    description
+    echo
+    echo "Commands: "
+    echo "  list (ls)        - list crashes reported by coredumpctl"
+    echo "  info <pid>       - print coredumpctl info"
+    echo "  btlist [-d daemon] [-f] [-z]"
+    echo "                   - look for crashes in ceph logs"
+}
+
+set_crash_txt() {
+    CRASH_TXT="${SES_SUPPORTCONFIG_DIR}/crash.txt"
+
+    if ! [ -f "${CRASH_TXT}" ]; then
+        echo "cannot find crash.txt file" \
+             "in supportconfig directory ${SES_SUPPORTCONFIG_DIR}" >&2
+        exit 1
+    fi
+}
+
+list() {
+    set_crash_txt
+
+    awk '
+        $0 ~ /coredumpctl list/   {list = 1; print}
+        list && $0 ~ /^#==/       {list = 0}
+        list && $0 ~ /^TIME|ceph/ {print}
+    ' "${CRASH_TXT}"
+}
+
+info() {
+    local pid="$1"
+
+    if [ -z "${pid}" ]; then
+        echo "pid is not specified" >&2
+        echo >&2
+        help >&2
+        exit 1
+    fi
+
+    set_crash_txt
+
+    awk '
+        $0 ~ /coredumpctl info '${pid}' *$/ {p = 1}
+        p && $0 ~ /^#==/                    {p = 0}
+        p                                   {print}
+    ' "${CRASH_TXT}"
+}
+
+btlist() {
+    local daemon=*
+    local f=0
+    local z=
+
+    while getopts fd:z name; do
+        case $name in
+            d)
+                daemon="$OPTARG"
+                ;;
+            f)
+                f=1
+                ;;
+            z)
+                z=1
+                ;;
+            ?)
+                printf "invalid option specified"
+                exit 1
+                ;;
+        esac
+    done
+
+    local files="ceph/log/ceph/ceph-${daemon}.log"
+    if [ -n "${z}" ]; then
+        files="${files}*"
+    fi
+
+    local file
+    for file in `eval echo $files`; do
+        local cat_cmd=cat
+        if [ "${file}" != "${file%.xz}" ]; then
+            cat_cmd=xzcat
+        fi
+
+        daemon=$(echo "${file}" | sed -nEe 's/^.*ceph-(.*).log.*$/\1/p')
+
+        $cat_cmd "${file}" |
+        grep -A100 '^20.* Caught signal' |
+        awk -v f="$f" -v daemon="${daemon}" -v file="${file}" '
+        $0 ~ /^20.* Caught signal/ {
+          if (f) {
+            print "----------------------------------------------------"
+            print "daemon: " daemon
+            print "log file: " file
+            p=1
+          } else {
+            print daemon, file, $0
+          }
+        }
+        p && $0 ~ /^--- begin dump/ {
+          p = 0
+        }
+        p {
+          print
+        }'
+    done
+}
+
+case "$1" in
+    description)
+        description
+        exit 0
+        ;;
+    help)
+        help
+        exit 0
+        ;;
+    list|ls)
+        list
+        exit 0
+        ;;
+    info)
+        shift
+        info $@
+        exit 0
+        ;;
+    btlist)
+        shift
+        btlist $@
+        ;;
+    *)
+        list
+        exit 0
+        ;;
+esac

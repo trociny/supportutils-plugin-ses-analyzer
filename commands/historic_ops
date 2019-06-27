@@ -1,0 +1,89 @@
+#!/usr/bin/env python
+
+import argparse
+import json
+import os
+import re
+import sys
+
+#
+# Global
+#
+
+SES_SUPPORTCONFIG_DIR = os.environ.get('SES_SUPPORTCONFIG_DIR')
+
+cmd_description='print ceph daemon historic ops'
+
+parser = argparse.ArgumentParser(prog='sesa historic_ops', description=cmd_description)
+parser.add_argument(
+    'daemon',
+    metavar='mds.x|mon.x|osd.x',
+    help='print ops for this daemon',
+    nargs='?',
+    default=None,
+)
+parser.add_argument(
+    '-d', '--sort-by-daemon',
+    action='store_true',
+    help='sort by daemon',
+    default=False,
+)
+parser.add_argument(
+    '-t', '--sort-by-duration',
+    action='store_true',
+    help='sort by duration',
+    default=False,
+)
+
+#
+# Functions
+#
+
+def description():
+    print(cmd_description)
+
+def help():
+    parser.print_help()
+
+def main():
+    if len(sys.argv) > 1:
+        if sys.argv[1] == 'description':
+            description()
+            exit(0)
+        elif sys.argv[1] == 'help':
+            help()
+            exit(0)
+
+    args = parser.parse_args()
+
+    ops = []
+    for d in os.listdir(SES_SUPPORTCONFIG_DIR + '/ceph'):
+        if args.daemon:
+            if d != args.daemon:
+                continue
+        elif not re.match(r'^(mds|mon|osd)\.', d):
+            continue
+        f = open(SES_SUPPORTCONFIG_DIR + '/ceph/' + d +
+                 '/ceph-daemon-historic_ops', 'r')
+        historic_ops = json.load(f)
+        ops.extend([dict({'daemon' : d}, **x) for x in historic_ops['ops']])
+
+    if args.sort_by_duration:
+        ops.sort(key=lambda op: op['duration'], reverse=True)
+    
+    if args.sort_by_daemon:
+        ops.sort(key=lambda op: op['daemon'])
+
+    try:
+        for op in ops:
+            print('%-8s %1.3f %s %s' % (op['daemon'], op['duration'],
+                                        op['initiated_at'], op['description']))
+            sys.stdout.flush()
+    except IOError as e:
+        pass
+
+#
+# main
+#
+
+main()

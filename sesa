@@ -1,0 +1,78 @@
+#!/bin/sh
+
+SES_ANALIZER_DIR=$(dirname $(readlink -f $0))
+SES_ANALIZER_COMMANDS_DIR=${SES_ANALIZER_DIR}/commands
+
+export SES_SUPPORTCONFIG_DIR
+
+help() {
+    local cmd
+
+    if [ -n "$1" ]; then
+        cmd="$1"
+        run_cmd "$cmd" help
+        return $?
+    fi
+
+    echo "SES supportconfig analyzer"
+    echo ""
+    echo "usage: $(basename $0) <command> [options] [args]"
+    echo ""
+    echo "Commands:"
+    echo ""
+
+    local max_len=10
+    for cmd in $(ls ${SES_ANALIZER_COMMANDS_DIR}); do
+        local len=$(echo $cmd | wc -c)
+        if [ $len -gt $max_len ]; then
+            max_len=$len
+        fi
+    done
+    for cmd in $(ls ${SES_ANALIZER_COMMANDS_DIR}); do
+        local description="$(${SES_ANALIZER_COMMANDS_DIR}/${cmd} description)"
+        printf "  %-${max_len}s  %s\n" "${cmd}" "${description}"
+    done
+}
+
+set_supportconfig_dir() {
+    test -n "${SES_SUPPORTCONFIG_DIR}" && return
+
+    local dir=$(pwd)
+
+    while [ "${dir}" != / ]; do
+        if [ -e "${dir}/supportconfig.txt" ]; then
+            break
+        fi
+        dir=$(dirname "${dir}")
+    done
+    if [ -e "${dir}/supportconfig.txt" ]; then
+        SES_SUPPORTCONFIG_DIR="${dir}"
+    else
+        echo "$(basename $0) should be run inside supportconfig directory" >&2
+        exit 1
+    fi
+}
+
+run_cmd() {
+    local cmd=$1
+    shift
+
+    set_supportconfig_dir
+
+    ${SES_ANALIZER_COMMANDS_DIR}/${cmd} $@
+}
+
+#
+# Main
+#
+
+
+
+if [ -z "$1" ]; then
+    help $@
+elif [ "$1" = help ]; then
+    shift
+    help $@
+else
+    run_cmd $@
+fi
