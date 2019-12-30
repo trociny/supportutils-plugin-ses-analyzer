@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse
 import json
@@ -94,17 +94,17 @@ def main():
     try:
         for d in sorted(perf.keys()):
             key = args.key
-            if not perf[d].has_key(args.key):
+            if args.key not in perf[d]:
                 continue
             val = perf[d][args.key]
             if args.subkey:
                 key = key + ' ' + args.subkey
-                if not val.has_key(args.subkey):
+                if args.subkey not in val:
                     continue
                 val = val[args.subkey]
             if args.subsubkey:
                 key = key + ' ' + args.subsubkey
-                if not val.has_key(args.subsubkey):
+                if args.subsubkey not in val:
                     continue
                 val = val[args.subsubkey]
             if args.no_keys:
