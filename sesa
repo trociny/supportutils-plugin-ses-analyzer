@@ -57,7 +57,9 @@ run_cmd() {
     local cmd=$1
     shift
 
-    set_supportconfig_dir
+    if [ "$1" != help ]; then
+        set_supportconfig_dir
+    fi
 
     ${SES_ANALIZER_COMMANDS_DIR}/${cmd} $@
 }
@@ -65,8 +67,6 @@ run_cmd() {
 #
 # Main
 #
-
-
 
 if [ -z "$1" ]; then
     help $@
