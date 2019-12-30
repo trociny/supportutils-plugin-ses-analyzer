@@ -28,6 +28,12 @@ parser.add_argument(
     default=False,
 )
 parser.add_argument(
+    '-l', '--no-vals',
+    action='store_true',
+    help='print only keys',
+    default=False,
+)
+parser.add_argument(
     'key',
     nargs='?',
     help='perf key (if not specified, list all keys)',
@@ -107,6 +113,8 @@ def main():
                 if args.subsubkey not in val:
                     continue
                 val = val[args.subsubkey]
+            if args.no_vals:
+                val = list(val)
             if args.no_keys:
                 print('%-8s %s' % (d, val))
             else:
