@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import os
+import sys
+
+#
+# Global
+#
+
+SES_SUPPORTCONFIG_DIR = os.environ.get('SES_SUPPORTCONFIG_DIR')
+
+cmd_description='show ceph crush info'
+
+parser = argparse.ArgumentParser(prog='sesa crush', description=cmd_description)
+parser.add_argument(
+    'command',
+    metavar='dump|rule ls|rule dump',
+    help='command',
+    nargs='?',
+    default=None,
+)
+parser.add_argument(
+    'args',
+    nargs=argparse.REMAINDER
+)
+
+#
+# Functions
+#
+
+def description():
+    print(cmd_description)
+
+def help():
+    parser.print_help()
+
+def get_crushmap():
+    with open(SES_SUPPORTCONFIG_DIR + '/ceph/ceph-report', 'r') as f:
+        report_lines = f.readlines()
+        report = json.loads(''.join(report_lines[3:]))
+        return report['crushmap']
+    return None
+
+def crush_dump():
+    crush = get_crushmap()
+    print(json.dumps(crush, indent=2))
+
+def crush_rule(args):
+    crush = get_crushmap()
+    rules = crush['rules']
+    if not args or args[0] in ('ls', 'list'):
+        for r in rules:
+            print("{:>2} {}".format(r['rule_id'], r['rule_name']))
+    elif args[0] == 'dump':
+        ids = args[1:]
+        if ids:
+            rules = list(filter(lambda r: str(r['rule_id']) in ids, rules))
+        print(json.dumps(rules, indent=2))
+
+def main():
+    if len(sys.argv) > 1:
+        if sys.argv[1] == 'description':
+            description()
+            exit(0)
+        elif sys.argv[1] == 'help':
+            help()
+            exit(0)
+
+    args = parser.parse_args()
+
+    if not args.command or args.command == 'dump':
+        crush_dump()
+    elif args.command == 'rule':
+        crush_rule(args.args)
+
+#
+# main
+#
+
+main()
