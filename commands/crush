@@ -9,20 +9,20 @@ import sys
 # Global
 #
 
-SES_SUPPORTCONFIG_DIR = os.environ.get('SES_SUPPORTCONFIG_DIR')
+SES_SUPPORTCONFIG_DIR = os.environ.get("SES_SUPPORTCONFIG_DIR")
 
-cmd_description='show ceph crush info'
+cmd_description="show ceph crush info"
 
-parser = argparse.ArgumentParser(prog='sesa crush', description=cmd_description)
+parser = argparse.ArgumentParser(prog="sesa crush", description=cmd_description)
 parser.add_argument(
-    'command',
-    metavar='dump|rule ls|rule dump',
-    help='command',
-    nargs='?',
+    "command",
+    metavar="dump|ls|rule ls|rule dump",
+    help="command",
+    nargs="?",
     default=None,
 )
 parser.add_argument(
-    'args',
+    "args",
     nargs=argparse.REMAINDER
 )
 
@@ -37,43 +37,65 @@ def help():
     parser.print_help()
 
 def get_crushmap():
-    with open(SES_SUPPORTCONFIG_DIR + '/ceph/ceph-report', 'r') as f:
+    with open(SES_SUPPORTCONFIG_DIR + "/ceph/ceph-report", "r") as f:
         report_lines = f.readlines()
-        report = json.loads(''.join(report_lines[3:]))
-        return report['crushmap']
+        report = json.loads("".join(report_lines[3:]))
+        return report["crushmap"]
     return None
 
 def crush_dump():
     crush = get_crushmap()
     print(json.dumps(crush, indent=2))
 
+def crush_list(args):
+    bucket_name = args and args[0] or "default"
+    crush = get_crushmap()
+
+    filtered_buckets = [b for b in crush["buckets"] if b["name"] == bucket_name]
+    if not filtered_buckets:
+        return
+
+    bucket = filtered_buckets[0]
+    buckets = {b["id"]: b["name"] for b in crush["buckets"]}
+    devices = {d["id"]: d["name"] for d in crush["devices"]}
+
+    for item in bucket["items"]:
+        id = item['id']
+        print(id < 0 and buckets.get(id, id) or devices.get(id, id))
+
 def crush_rule(args):
     crush = get_crushmap()
-    rules = crush['rules']
-    if not args or args[0] in ('ls', 'list'):
+    rules = crush["rules"]
+    if not args or args[0] in ("ls", "list"):
         for r in rules:
-            print("{:>2} {}".format(r['rule_id'], r['rule_name']))
-    elif args[0] == 'dump':
+            print("{:>2} {}".format(r["rule_id"], r["rule_name"]))
+    elif args[0] == "dump":
         ids = args[1:]
         if ids:
-            rules = list(filter(lambda r: str(r['rule_id']) in ids, rules))
+            rules = [r for r in rules if str(r["rule_id"]) in ids]
         print(json.dumps(rules, indent=2))
+    else:
+        print("invalid command: {}".format(args[0]), file=sys.stderr)
 
 def main():
     if len(sys.argv) > 1:
-        if sys.argv[1] == 'description':
+        if sys.argv[1] == "description":
             description()
             exit(0)
-        elif sys.argv[1] == 'help':
+        elif sys.argv[1] == "help":
             help()
             exit(0)
 
     args = parser.parse_args()
 
-    if not args.command or args.command == 'dump':
+    if not args.command or args.command == "dump":
         crush_dump()
-    elif args.command == 'rule':
+    elif args.command in ("ls", "list"):
+        crush_list(args.args)
+    elif args.command == "rule":
         crush_rule(args.args)
+    else:
+        print("invalid command: {}".format(args.command), file=sys.stderr)
 
 #
 # main
