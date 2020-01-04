@@ -8,8 +8,11 @@ help() {
     description
     echo
     echo "Commands: "
-    echo "  show        - show log file records"
-    echo "  pgmap [-p]  - show pgmap records"
+    echo "  show            - show log file records"
+    echo "  pgmap [-p]      - show pgmap records"
+    echo "  osdmap [-q]     - show osdmap records"
+    echo "  scrub           - show scrub (both scrub and deep-scrub) records"
+    echo "  deep-scrub [-c] - show deep-scrub records"
 }
 
 show() {
@@ -29,6 +32,57 @@ pgmap() {
     esac
 }
 
+osdmap() {
+    case "$1" in
+        -q)
+            # 2019-11-27 10:58:29.768241 mon.en-mon01 (mon.0) 750740 : cluster [DBG] osdmap e76821: 336 total, 336 up, 336 in
+            grep ' osdmap e[0-9]*: ' $LOG_FILE |
+            awk '$11 != TOTAL || $13 != UP || $15 != IN {
+                   print;
+                 }
+                 {
+                   TOTAL = $11; UP = $13; IN = $15;
+                 }
+            '
+            ;;
+        *)
+            grep ' osdmap e[0-9]*: ' $LOG_FILE
+            ;;
+    esac
+}
+
+scrub() {
+    grep 'scrub ' $LOG_FILE
+}
+
+deep_scrub() {
+    case "$1" in
+        -c)
+            # 2018-01-16 09:06:01.365811 osd.36 10.0.82.2:6804/4082 39 : cluster [INF] 1.69 deep-scrub starts
+            # 2018-01-16 09:06:02.613953 osd.36 10.0.82.2:6804/4082 40 : cluster [INF] 1.69 deep-scrub ok
+            grep 'deep-scrub ' $LOG_FILE |
+            awk '$10 == "deep-scrub" && $11 == "starts" {
+                   a[$9]++;
+                 }
+                 $10 == "deep-scrub" && $11 != "starts" {
+                   delete a[$9];
+                 }
+                 {
+                   pgs = "";
+                   n = 0;
+                   for (pg in a) {
+                     pgs = pgs pg " "
+                     n++;
+                   }
+                   print $0, n, pgs;
+                 }'
+            ;;
+        *)
+            grep 'deep-scrub ' $LOG_FILE
+            ;;
+    esac
+}
+
 cmd=show
 
 case "$1" in
@@ -42,7 +96,7 @@ case "$1" in
         ;;
     *)
         if [ "$#" -gt 0 ]; then
-            cmd="$1"
+            cmd="$(echo $1 | sed -e 's/-/_/g')"
             shift
         fi
         ;;
