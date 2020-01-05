@@ -47,21 +47,59 @@ def crush_dump():
     crush = get_crushmap()
     print(json.dumps(crush, indent=2))
 
+def print_bucket(b, detail):
+    if detail:
+        print("{:<20} [{} {:>8} {:>12} {} {}]".format(
+            b["name"], b["type_name"], b["id"], b["weight"], b["alg"],
+            b["hash"]))
+    else:
+        print(b["name"])
+
+def print_device(d, weight, detail):
+    if detail:
+        print("{:<20} [device {:>8} {:>12}   {}]".format(
+            d["name"], d["id"], weight, d.get("class", "--")))
+    else:
+        print(d["name"])
+
 def crush_list(args):
-    bucket_name = args and args[0] or "default"
+    detail = False
+    bucket_name = None
+
+    if '-l' in args:
+        args = [a for a in args if a != '-l']
+        detail = True
+    if args:
+        bucket_name = args[0]
+
     crush = get_crushmap()
+
+    if not bucket_name:
+        for b in crush["buckets"]:
+            if b["type_name"] != "root":
+                continue
+            print_bucket(b, detail)
+        return
 
     filtered_buckets = [b for b in crush["buckets"] if b["name"] == bucket_name]
     if not filtered_buckets:
         return
 
+    buckets = {b["id"]: b for b in crush["buckets"]}
+    devices = {d["id"]: d for d in crush["devices"]}
+
     bucket = filtered_buckets[0]
-    buckets = {b["id"]: b["name"] for b in crush["buckets"]}
-    devices = {d["id"]: d["name"] for d in crush["devices"]}
 
     for item in bucket["items"]:
         id = item['id']
-        print(id < 0 and buckets.get(id, id) or devices.get(id, id))
+        weight = item['weight']
+        if id < 0:
+            b = buckets.get(id, {"id" : id, "name" : str(id), "type_name" : "--",
+                                 "weight" : weight, "alg" : "--", "hash" : "--"})
+            print_bucket(b, detail)
+        else:
+            d = devices.get(id, {"id" : id, "name" : str(id)})
+            print_device(d, weight, detail)
 
 def crush_rule(args):
     crush = get_crushmap()
