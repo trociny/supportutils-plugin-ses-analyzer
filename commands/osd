@@ -5,11 +5,13 @@ import json
 import os
 import sys
 
+sys.path.append(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "lib"))
+from common import get_report
+
 #
 # Global
 #
-
-SES_SUPPORTCONFIG_DIR = os.environ.get('SES_SUPPORTCONFIG_DIR')
 
 cmd_description='show ceph osd info'
 
@@ -47,14 +49,13 @@ def help():
     parser.print_help()
 
 def get_osd_metadata(ids):
-    with open(SES_SUPPORTCONFIG_DIR + '/ceph/ceph-report', 'r') as f:
-        report_lines = f.readlines()
-        report = json.loads(''.join(report_lines[3:]))
-        m = report['osd_metadata']
-        if ids:
-            m = list(filter(lambda osd: osd['id'] in ids, m))
-        return m
-    return None
+    report = get_report()
+    if report is None:
+        return None
+    m = report['osd_metadata']
+    if ids:
+        m = list(filter(lambda osd: osd['id'] in ids, m))
+    return m
 
 def osd_sum(ids, filter_dev_type):
     m = get_osd_metadata(ids)
