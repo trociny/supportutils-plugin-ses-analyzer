@@ -34,6 +34,13 @@ parser.add_argument(
     default=False,
 )
 parser.add_argument(
+    'cmd',
+    nargs='?',
+    help='command to run',
+    choices=['daemons', 'dump', 'grep'],
+    default='daemons',
+)
+parser.add_argument(
     'key',
     nargs='?',
     help='perf key (if not specified, list all keys)',
@@ -62,6 +69,14 @@ def description():
 def help():
     parser.print_help()
 
+def grep(perf, pattern, prefix):
+    for k in sorted(perf.keys()):
+        if re.search(pattern, k):
+            print('%s %s %s' % (prefix, k, perf[k]))
+            sys.stdout.flush()
+        if isinstance(perf[k], dict):
+            grep(perf[k], pattern, '%s %s' % (prefix, k))
+
 def main():
     if len(sys.argv) > 1:
         if sys.argv[1] == 'description':
@@ -78,24 +93,37 @@ def main():
         if args.daemon:
             if d != args.daemon:
                 continue
-        elif not re.match(r'^(mds|mon|osd)\.', d):
+        elif not re.match(r'(mds|mon|osd)\.', d):
             continue
         f = open(SES_SUPPORTCONFIG_DIR + '/ceph/' + d +
                  '/ceph-daemon-perf', 'r')
         perf[d] = json.load(f)
 
+    if args.cmd == 'daemons':
+        for d in sorted(perf.keys()):
+            print(d)
+            sys.stdout.flush()
+        exit(0)
+
     if not args.key:
         try:
             for d in sorted(perf.keys()):
                 for key in sorted(perf[d].keys()):
+                    if args.cmd == 'grep':
+                        key = key + ' ' + str(perf[d][key])
                     print('%-8s %s' % (d, key))
                     sys.stdout.flush()
         except IOError as e:
             pass
         exit(0)
 
-    #if args.sort_by_daemon:
-    #    ops.sort(key=lambda op: op['daemon'])
+    if args.cmd == 'grep':
+        try:
+            for d in sorted(perf.keys()):
+                grep(perf[d], args.key, '%-8s' % d)
+        except IOError as e:
+            pass
+        exit(0)
 
     try:
         for d in sorted(perf.keys()):

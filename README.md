@@ -90,7 +90,7 @@ osd.114  0.044 2019-03-13 15:14:44.084371 osd_op(client.164631.0:30850709 1.2b8 
 osd.74   0.044 2019-03-13 15:12:25.173506 osd_op(client.135917.0:29889732 1.755 1:aaed5f58:::10000000c45.000003b4:head [read 0~4194304] snapc 0=[] ondisk+read+known_if_redirected e1131)
 osd.139  0.042 2019-03-13 15:11:32.907149 osd_op(client.135917.0:29863745 1.d38 1:1cb067a2:::10000000c55.000000d4:head [read 0~4194304] snapc 0=[] ondisk+read+known_if_redirected e1131)
 osd.102  0.042 2019-03-13 15:12:50.687053 osd_op(client.135917.0:29902353 1.be6 1:67d71df5:::10000000c71.000003ca:head [read 0~3145728] snapc 0=[] ondisk+read+known_if_redirected e1131)
-$ sesa perf -n bluefs db_used_bytes
+$ sesa perf dump bluefs db_used_bytes -n
 osd.102  407896064
 osd.114  341835776
 osd.124  440401920
