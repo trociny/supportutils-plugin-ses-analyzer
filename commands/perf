@@ -93,7 +93,7 @@ def main():
         if args.daemon:
             if d != args.daemon:
                 continue
-        elif not re.match(r'(mds|mon|osd)\.', d):
+        elif not re.match(r'(mds|mgr|mon|osd)\.', d):
             continue
         f = open(SES_SUPPORTCONFIG_DIR + '/ceph/' + d +
                  '/ceph-daemon-perf', 'r')
