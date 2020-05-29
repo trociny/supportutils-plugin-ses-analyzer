@@ -9,25 +9,36 @@ help() {
     echo
     echo "Commands: "
     echo "  show            - show log file records"
-    echo "  pgmap [-p]      - show pgmap records"
+    echo "  pgmap [-p|-u]   - show pgmap records"
     echo "  osdmap [-q]     - show osdmap records"
     echo "  scrub           - show scrub (both scrub and deep-scrub) records"
     echo "  deep-scrub [-c] - show deep-scrub records"
+    echo ""
+    echo "Options:"
+    echo "  -x              - process compressed logs too"
 }
 
 show() {
-    less $LOG_FILE
+    if [ -n "${COMPRESSED}" ]; then
+      xzcat ${LOG_FILE}-*.xz
+    fi
+    cat ${LOG_FILE}
 }
 
 pgmap() {
     case "$1" in
         -p)
             # 2019-10-24 12:33:16.542142 mgr.tc3cmbE41216L client.874856120 172.23.192.1:0/538931070 6583636 : cluster [DBG] pgmap v4331819: 9248 pgs: 5 active+clean+scrubbing+deep, 9243 active+clean; 58.4TiB data, 174TiB used, 2.77PiB / 2.94PiB avail; 28.5MiB/s rd, 85.6MiB/s wr, 3.27kop/s
-            grep ' pgmap v[0-9]*: ' $LOG_FILE |
+            show | grep ' pgmap v[0-9]*: ' |
             sed -nEe 's/^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]*) .*avail; (.*$)/\1 \2/p'
             ;;
+        -u)
+            # 2019-10-24 12:33:16.542142 mgr.tc3cmbE41216L client.874856120 172.23.192.1:0/538931070 6583636 : cluster [DBG] pgmap v4331819: 9248 pgs: 5 active+clean+scrubbing+deep, 9243 active+clean; 58.4TiB data, 174TiB used, 2.77PiB / 2.94PiB avail; 28.5MiB/s rd, 85.6MiB/s wr, 3.27kop/s
+            show | grep ' pgmap v[0-9]*: ' |
+            sed -nEe 's/^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]*) .* ([^ ]+ data,.*avail);.*$/\1 \2/p'
+            ;;
         *)
-            grep ' pgmap v[0-9]*: ' $LOG_FILE
+            show | grep ' pgmap v[0-9]*: '
             ;;
     esac
 }
@@ -36,7 +47,7 @@ osdmap() {
     case "$1" in
         -q)
             # 2019-11-27 10:58:29.768241 mon.en-mon01 (mon.0) 750740 : cluster [DBG] osdmap e76821: 336 total, 336 up, 336 in
-            grep ' osdmap e[0-9]*: ' $LOG_FILE |
+            show | grep ' osdmap e[0-9]*: ' |
             awk '$11 != TOTAL || $13 != UP || $15 != IN {
                    print;
                  }
@@ -46,13 +57,13 @@ osdmap() {
             '
             ;;
         *)
-            grep ' osdmap e[0-9]*: ' $LOG_FILE
+            show | grep ' osdmap e[0-9]*: '
             ;;
     esac
 }
 
 scrub() {
-    grep 'scrub ' $LOG_FILE
+    show | grep 'scrub '
 }
 
 deep_scrub() {
@@ -60,7 +71,7 @@ deep_scrub() {
         -c)
             # 2018-01-16 09:06:01.365811 osd.36 10.0.82.2:6804/4082 39 : cluster [INF] 1.69 deep-scrub starts
             # 2018-01-16 09:06:02.613953 osd.36 10.0.82.2:6804/4082 40 : cluster [INF] 1.69 deep-scrub ok
-            grep 'deep-scrub ' $LOG_FILE |
+            show | grep 'deep-scrub ' |
             awk '$10 == "deep-scrub" && $11 == "starts" {
                    a[$9]++;
                  }
@@ -78,10 +89,15 @@ deep_scrub() {
                  }'
             ;;
         *)
-            grep 'deep-scrub ' $LOG_FILE
+            show | 'deep-scrub '
             ;;
     esac
 }
+
+if [ "$1" = "-x" ]; then
+    COMPRESSED=1
+    shift;
+fi
 
 cmd=show
 
