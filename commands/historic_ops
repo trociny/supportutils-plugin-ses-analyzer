@@ -65,7 +65,10 @@ def main():
             continue
         f = open(SES_SUPPORTCONFIG_DIR + '/ceph/' + d +
                  '/ceph-daemon-historic_ops', 'r')
-        historic_ops = json.load(f)
+        try:
+          historic_ops = json.load(f)
+        except:
+          continue
         ops.extend([dict({'daemon' : d}, **x) for x in historic_ops['ops']])
 
     if args.sort_by_duration:
