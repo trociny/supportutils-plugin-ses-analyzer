@@ -76,7 +76,7 @@ btlist() {
         esac
     done
 
-    local files="ceph/log/ceph/ceph-${daemon}.log"
+    local files="${SES_SUPPORTCONFIG_DIR}/ceph/log/ceph/ceph-${daemon}.log"
     if [ -n "${z}" ]; then
         files="${files}*"
     fi
