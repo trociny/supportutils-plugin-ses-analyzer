@@ -145,7 +145,7 @@ def get_dev_info():
                 continue
 
             # /dev/sdc2 ceph data, active, cluster ceph, osd.1
-            m = re.match(r'^\s*/dev/([a-z]+).*ceph data.*(osd\.\d+)', l)
+            m = re.match(r'^\s*/dev/([a-z]+).*ceph data.*(osd\.\d+).*', l)
             if m:
                 osds[m.group(1)] = m.group(2)
                 continue
