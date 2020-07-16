@@ -1,0 +1,299 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import re
+import sys
+import pipes
+
+sys.path.append(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "lib"))
+from common import SES_SUPPORTCONFIG_DIR
+
+#
+# Global
+#
+
+cmd_description='show sar data'
+
+parser = argparse.ArgumentParser(prog='sesa sar', description=cmd_description)
+parser.add_argument(
+    'command',
+    metavar='io',
+    help='command',
+    nargs=1,
+    default=None,
+)
+parser.add_argument(
+    'dev',
+    metavar='dev',
+    help='device name',
+    nargs='*',
+    default=None,
+)
+parser.add_argument(
+    '-H', '--history',
+    action='store_true',
+    help='show for all available days',
+    default=False,
+)
+parser.add_argument(
+    '-a', '--average',
+    action='store_true',
+    help='show only average',
+    default=False,
+)
+parser.add_argument(
+    '-t', '--time',
+    metavar='reg',
+    help='filter by this time regex',
+    default=None,
+)
+parser.add_argument(
+    '-p', '--tps',
+    metavar='v',
+    help='filter by tps higher this value',
+    default=None,
+)
+parser.add_argument(
+    '-r', '--rkbs',
+    metavar='v',
+    help='filter by rkB/s higher this value',
+    default=None,
+)
+parser.add_argument(
+    '-w', '--wkbs',
+    metavar='v',
+    help='filter by wkB/s higher this value',
+    default=None,
+)
+parser.add_argument(
+    '-S', '--areqsz',
+    metavar='v',
+    help='filter by areq-sz higher this value',
+    default=None,
+)
+parser.add_argument(
+    '-q', '--aqusz',
+    metavar='v',
+    help='filter by aqu-sz higher this value',
+    default=None,
+)
+parser.add_argument(
+    '-W', '--wait',
+    metavar='v',
+    help='filter by await higher this value',
+    default=None,
+)
+parser.add_argument(
+    '-s', '--svctm',
+    metavar='v',
+    help='filter by svctm higher this value',
+    default=None,
+)
+parser.add_argument(
+    '-u', '--util',
+    metavar='v',
+    help='filter by %%util higher this value',
+    default=None,
+)
+
+#
+# Functions
+#
+
+def description():
+    print(cmd_description)
+
+def help():
+    parser.print_help()
+
+def get_dev_info():
+    devs = {}
+    rdevs = {}
+
+    diskio = os.path.join(SES_SUPPORTCONFIG_DIR, 'fs-diskio.txt')
+    try:
+        f = open(diskio)
+        found = False
+        for l in f.readlines():
+            if not found:
+                if re.search(r'^major minor', l):
+                    found = True
+                continue
+            c = re.split(r'\s+', l[:-1])[1:]
+            if len(c) < 4:
+                break
+            n = 'dev{}-{}'.format(c[0], c[1])
+            devs[n] = c[3]
+            rdevs[c[3]] = n
+
+    except IOError as e:
+        print("failed to read {}: {}".format(diskio, e), file=sys.stderr)
+
+    osds = {}
+    journals = set()
+
+    cephdisks = os.path.join(SES_SUPPORTCONFIG_DIR, 'ceph', 'ceph-disk-list')
+    try:
+        f = open(cephdisks)
+        for l in f.readlines():
+            # /dev/sdc1 ceph journal
+            m = re.match(r'^\s*/dev/([a-z]+).*ceph journal.*', l)
+            if m:
+                journals.add(m.group(1))
+                continue
+
+            # /dev/sdc2 ceph data, active, cluster ceph, osd.1
+            m = re.match(r'^\s*/dev/([a-z]+).*ceph data.*(osd\.\d+)', l)
+            if m:
+                osds[m.group(1)] = m.group(2)
+                continue
+
+    except IOError as e:
+        #print("failed to read {}: {}".format(cephdisks, e), file=sys.stderr)
+        pass
+
+    cephvols = os.path.join(SES_SUPPORTCONFIG_DIR, 'ceph', 'ceph-volume-list')
+    try:
+        f = open(cephvols)
+        osd = None
+        dev_type = None
+        for l in f.readlines():
+            #====== osd.0 =======
+            m = re.search(r'==\s+(osd\.\d+)\s+==', l)
+            if m:
+                osd = m.group(1)
+                continue
+
+            # type                      block
+            m = re.search(r'\stype\s+([\w]+)', l)
+            if m:
+                dev_type = m.group(1)
+                continue
+
+            # devices                   /dev/sdb
+            m = re.search(r'\sdevices\s+/dev/([\w]+)', l)
+            if m:
+                if dev_type == 'block':
+                    osds[m.group(1)] = osd
+                else:
+                    journals.add(m.group(1))
+                continue
+
+    except IOError as e:
+        #print("failed to read {}: {}".format(cephvols, e), file=sys.stderr)
+        pass
+
+    for dev, min_maj in rdevs.items():
+        if dev in osds:
+            devs[min_maj] += " {}".format(osds[dev])
+            if dev in journals:
+                devs[min_maj] += "+journal"
+        elif dev in journals:
+            devs[min_maj] += " journal"
+
+    return devs
+
+def get_sars():
+    try:
+        sar = os.path.join(SES_SUPPORTCONFIG_DIR, 'sar')
+        return [os.path.join(sar, f) for f in sorted(os.listdir(sar))
+                if f[:3] == 'sar']
+    except IOError as e:
+        return []
+
+def sar_io(args):
+    sars = get_sars()
+    if not sars:
+        print("no sar data found", file=sys.stderr)
+        return
+
+    if not args.history:
+        sars = sars[-1:]
+
+    dev_info = get_dev_info()
+
+    for s in sars:
+        m = re.match(r'^.*/sar(\d{4})(\d{2})(\d{2})(\.xz)?$', s)
+        if not m:
+            print("invalid sar filename format: {}".format(s), file=sys.stderr)
+            continue
+
+        date = '{}-{}-{}'.format(m.group(1), m.group(2), m.group(3))
+        sfx = m.group(4)
+
+        t = pipes.Template()
+        if sfx:
+            t.append('xzcat', '--')
+        else:
+            t.append('cat', '--')
+        try:
+            f = t.open(s, 'r')
+            found = False
+            for l in f.readlines():
+                if not found:
+                    if re.search(r' %util', l):
+                        found = True
+                    else:
+                        continue
+                if not l[:-1]:
+                    break
+                c = re.split(r'\s+', l[:-1])
+                if c[1] == 'DEV':
+                    l = l.replace(c[0], 'TIME    ')
+                    pdate = 'DATE      '
+                else:
+                    if args.average and c[0] != 'Average:':
+                        continue
+                    if args.time and not re.search(args.time,
+                                                   '{} {}'.format(date, c[0])):
+                        continue
+                    if args.dev and not c[1] in args.dev:
+                        continue
+                    if args.tps and float(c[2]) < float(args.tps):
+                        continue
+                    if args.rkbs and float(c[3]) < float(args.rkbs):
+                        continue
+                    if args.wkbs and float(c[4]) < float(args.wkbs):
+                        continue
+                    if args.aqusz and float(c[5]) < float(args.aqusz):
+                        continue
+                    if args.areqsz and float(c[6]) < float(args.areqsz):
+                        continue
+                    if args.wait and float(c[7]) < float(args.wait):
+                        continue
+                    if args.svctm and float(c[8]) < float(args.svctm):
+                        continue
+                    if args.util and float(c[9]) < float(args.util):
+                        continue
+                    pdate = date
+
+                print('{} {} [{}]'.format(pdate, l[:-1],
+                                          dev_info.get(c[1], 'DESC')))
+                sys.stdout.flush()
+
+        #except IOError as e:
+        #    print("failed to read {}: {}".format(s, e), file=sys.stderr)
+        except:
+            break
+
+def main():
+    if len(sys.argv) > 1:
+        if sys.argv[1] == 'description':
+            description()
+            exit(0)
+        elif sys.argv[1] == 'help':
+            help()
+            exit(0)
+
+    args = parser.parse_args()
+
+    if 'io' in args.command:
+        sar_io(args)
+
+#
+# main
+#
+
+main()
