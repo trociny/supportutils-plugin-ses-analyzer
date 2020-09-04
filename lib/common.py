@@ -7,11 +7,13 @@ def get_report():
     with open(SES_SUPPORTCONFIG_DIR + "/ceph/ceph-report", "r") as f:
         report_lines = f.readlines()
         if not report_lines:
-                return None
+            return None
         begin = 0
         end = len(report_lines)
         while begin < 10 and report_lines[begin] != "{\n":
-                begin += 1
+            begin += 1
+            if begin == end:
+                return None
         while end > begin and report_lines[end - 1] != "}\n":
-                end -= 1
+            end -= 1
         return json.loads("".join(report_lines[begin:end]))
