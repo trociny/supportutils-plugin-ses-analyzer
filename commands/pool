@@ -33,17 +33,37 @@ def description():
 def help():
     parser.print_help()
 
+def get_usage(report):
+    usage = {}
+    total = report['pool_sum']['stat_sum']['num_bytes']
+
+    for pool in report['pool_stats']:
+        usage[pool['poolid']] = 100 * pool['stat_sum']['num_bytes'] / total
+
+    return usage
+
+
 def pool(pools):
     report = get_report()
     if report is None:
-        return None
+        return
+
+    usage = get_usage(report)
+
+    header = '{:>2} {:<30} {:>3} {:>5}/{:<5} {:>2}/{:<2}'.format(
+        'ID', 'NAME', '%U', 'PG', 'PGP', 'SZ', 'MS')
+    print(header)
 
     for pool in report['osdmap']['pools']:
         if pools and \
            str(pool['pool']) not in pools and pool['pool_name'] not in pools:
             continue
-        info = '{:>2} {:<30} {}/{}'.format(pool['pool'], pool['pool_name'],
-                                           pool['size'], pool['min_size'])
+
+        pool_id = pool['pool']
+        info = '{:>2} {:<30} {:>3} {:>5}/{:<5} {:>2}/{:<2}'.format(
+            pool_id, pool['pool_name'], int(usage[pool_id]), pool['pg_num'],
+            pool['pg_placement_num'], pool['size'], pool['min_size'])
+
         if  pool['type'] == 1:
             info += ' replicated'
         elif pool['type'] == 3:
