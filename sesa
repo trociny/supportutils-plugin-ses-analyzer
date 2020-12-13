@@ -40,12 +40,12 @@ set_supportconfig_dir() {
     local dir=$(pwd)
 
     while [ "${dir}" != / ]; do
-        if [ -e "${dir}/supportconfig.txt" ]; then
+        if [ -e "${dir}/basic-environment.txt" ]; then
             break
         fi
         dir=$(dirname "${dir}")
     done
-    if [ -e "${dir}/supportconfig.txt" ]; then
+    if [ -e "${dir}/basic-environment.txt" ]; then
         SES_SUPPORTCONFIG_DIR="${dir}"
     else
         echo "$(basename $0) should be run inside supportconfig directory" >&2
