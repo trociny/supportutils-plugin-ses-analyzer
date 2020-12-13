@@ -54,8 +54,19 @@ set_supportconfig_dir() {
 }
 
 run_cmd() {
-    local cmd=$1
+    local orig_cmd=$1 cmd=$1
     shift
+
+    while ! test -x ${SES_ANALIZER_COMMANDS_DIR}/${cmd}; do
+        test -z "$@" && break
+        cmd=${cmd}-$1
+        shift
+    done
+
+    if ! test -x ${SES_ANALIZER_COMMANDS_DIR}/${cmd}; then
+        echo "unknown command: ${orig_cmd}" >&2
+        exit 1
+    fi
 
     if [ "$1" != help ]; then
         set_supportconfig_dir
